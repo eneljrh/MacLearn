@@ -1,0 +1,157 @@
+---
+title: "Machine Learning"
+author: "Jesus"
+date: "27/1/2021"
+output:
+  html_document:
+    
+    keep_md: yes
+  md_document: default
+  pdf_document: default
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Executive Summary
+
+#### Background
+
+##### Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+#### Data
+
+##### The training data for this project are available here:
+
+##### https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+##### The test data are available here:
+
+##### https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+##### The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+#### Goal
+
+##### The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+##Steps
+ 1. Loadind data.
+ 2. Split data in a train and test dataset.
+ 3. Data processing in order to eliminate columns with no significance or few values.
+ 4. Apply a random forest fit model on the train data (we will see we can make this assumption due to results obtained)
+ 5. Apply a cross validation in order to certify the model fit.
+
+### Imports
+Preliminaries
+```{r  message=FALSE}
+library(tidyr)
+require(knitr)
+library(dplyr)
+library(caret)
+library(randomForest)
+
+```
+
+
+##  Data Processing
+
+
+### 1. Load the Data
+We load the dataset with the information  into the train an test datasets (the files were downloaded previously from original web via "downloadcsv", in order to don't need internet connection to execute the code):
+```{r  echo=TRUE}
+train_dataset <- read.csv("pml-training.csv",na.strings=c("NA","#DIV/0!",""))
+test_dataset  <- read.csv("pml-testing.csv", na.strings =c("NA","#DIV/0!",""))
+
+```
+### 2. We exclude columns without implication:
+```{r  echo=TRUE}
+
+train_dataset <- train_dataset[,-c(1,3,4,5,6,7)]
+test_dataset <- test_dataset[,-c(1,3,4,5,6,7)]
+```
+### 3. We separate original train dataset in two datasets for training and validation:
+
+```{r  echo=TRUE}
+set.seed(122)
+part <- createDataPartition(train_dataset$classe, p = 0.7, list = FALSE)
+TrainSet <- train_dataset[part, ]
+ValSet <- train_dataset[-part, ]
+
+```
+### 4. We want to select which columns apply on the model. Using an auxiliar variable, first We exclude columns with near 0 var:
+
+```{r  echo=TRUE}
+# Auxiliar variable 2
+TrainSet2<-TrainSet
+TrainSet2 <- TrainSet2[, -nearZeroVar(TrainSet2)]
+
+```
+### 5. We want to exclude columns with >85% NA values for the train dataset:
+
+```{r  echo=TRUE}
+
+ratioCols <- colSums(is.na(TrainSet2))/nrow(TrainSet2)
+colsgreat85 <- which(ratioCols > 0.85)
+TrainSet2 <- TrainSet2[,-colsgreat85]
+
+```
+### 6. We want to exclude the user name column:
+
+```{r  echo=TRUE}
+
+
+TrainSet2 <- TrainSet2[,-grep("user_name",names(TrainSet2))]
+```
+### 7. Final columns to use in the model to fit:
+
+```{r  echo=TRUE}
+
+fitCol<-names(TrainSet2)
+fitCol
+
+```
+##  MODEL
+
+### 1. We apply a random Forest model over the original Train Dataset over the final columns (we assume it a good fit model to use due to the quantity of existing data as we will see).
+
+*We could include the use of other models as  Gradient boosted  via function:  train(classe ~ ., data=TrainSet, *method="gbm") but the best adjustment obtained is via Random Forest (we won't add this information of model "gbm"in* *order to make the document shorter).*
+
+
+```{r  echo=TRUE}
+
+TrainSet <- TrainSet[,fitCol]
+
+TrainSet$classe = factor(TrainSet$classe)
+rfModel <- randomForest(classe ~ ., data = TrainSet, importance = TRUE, ntrees = 10)
+```
+### 2. We apply it over the same dataset to observe accuracy:
+
+```{r  echo=TRUE}
+predicttraining <- predict(rfModel, TrainSet)
+confusionMatrix(predicttraining, TrainSet$classe)
+```
+As we expected we get a good accuracy, we must certify with a cross validation.
+
+### 3. We apply it over validation dataset to observe accuracy on the cross validation:
+
+```{r  echo=TRUE}
+ValSet$classe = factor(ValSet$classe)
+predicttraining <- predict(rfModel, ValSet)
+confusionMatrix(predicttraining, ValSet$classe)
+
+
+```
+
+
+## Result
+
+With the cross validation of the model we get a 99.32 % accuracy on the validation set. Its quite a good value as was expected by the assumption on point 1. The model adjust to the data of the experiment.
+
+The same result is obtained if the model is applied to dataset test_dataset (not added in this document).
